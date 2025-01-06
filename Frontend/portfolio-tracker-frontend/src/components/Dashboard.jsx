@@ -2,23 +2,37 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { fetchRealTimePortfolioValue } from '../api/StockServices';
 
-const Dashboard = ({ totalValue }) => {
-  const [addedStockValue, setAddedStockValue] = useState(0); // Track the added stock value
+const Dashboard = ({ totalValue = 0 }) => {
+  const [realTimeValue, setRealTimeValue] = useState(totalValue);
   const [isLoading, setIsLoading] = useState(false);
-  const [historicalData] = useState([
-    { time: '1h ago', value: totalValue * 0.98 },
-    { time: '45m ago', value: totalValue * 0.99 },
-    { time: '30m ago', value: totalValue * 1.01 },
-    { time: '15m ago', value: totalValue * 1.02 },
-    { time: 'Now', value: totalValue }
-  ]);
+  const [historicalData, setHistoricalData] = useState([]);
+
+  const updateHistoricalData = (newValue) => {
+    const now = new Date();
+    setHistoricalData(prev => {
+      // Keep only last 4 entries and add new value
+      const newData = [...prev.slice(-4), {
+        time: 'Now',
+        value: newValue
+      }];
+      
+      // Update time labels
+      return newData.map((item, index) => ({
+        ...item,
+        time: index === newData.length - 1 ? 'Now' : 
+              `${(newData.length - 1 - index) * 15}m ago`
+      }));
+    });
+  };
 
   const getRealTimeValue = async () => {
     setIsLoading(true);
     try {
       const value = await fetchRealTimePortfolioValue();
-      setAddedStockValue(value); // Set the new stock value after fetching
+      setRealTimeValue(Number(value) || 0);
+      updateHistoricalData(Number(value) || 0);
     } catch (error) {
       console.error("Error fetching real-time portfolio value:", error);
     } finally {
@@ -27,14 +41,25 @@ const Dashboard = ({ totalValue }) => {
   };
 
   useEffect(() => {
-    getRealTimeValue();
-    const intervalId = setInterval(getRealTimeValue, 60000);
-    return () => clearInterval(intervalId);
-  }, []);
+    // Initialize historical data with current total value
+    setHistoricalData([
+      { time: '1h ago', value: totalValue },
+      { time: '45m ago', value: totalValue },
+      { time: '30m ago', value: totalValue },
+      { time: '15m ago', value: totalValue },
+      { time: 'Now', value: totalValue }
+    ]);
 
-  // Adjusted logic to track the value change based on the added stock value
-  const valueChange = addedStockValue - totalValue;
-  const percentageChange = ((addedStockValue - totalValue) / totalValue * 100).toFixed(2);
+    // Initial fetch
+    getRealTimeValue();
+
+    // Set up interval for real-time updates
+    const intervalId = setInterval(getRealTimeValue, 60000); // Every minute
+    return () => clearInterval(intervalId);
+  }, [totalValue]);
+
+  const valueChange = realTimeValue - totalValue;
+  const percentageChange = totalValue ? ((valueChange / totalValue) * 100).toFixed(2) : '0.00';
 
   return (
     <div className="space-y-4">
@@ -50,7 +75,7 @@ const Dashboard = ({ totalValue }) => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Total Portfolio Value</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Base Portfolio Value</p>
               <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
                 ${totalValue.toLocaleString()}
               </h2>
@@ -58,12 +83,13 @@ const Dashboard = ({ totalValue }) => {
             
             <div className="space-y-2">
               <div className="flex items-center space-x-2">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Added Stock Value</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Real-Time Value</p>
                 <motion.button
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
                   className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
                   onClick={getRealTimeValue}
+                  disabled={isLoading}
                 >
                   <RefreshCw 
                     className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`}
@@ -72,7 +98,7 @@ const Dashboard = ({ totalValue }) => {
               </div>
               <div className="flex items-center space-x-2">
                 <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
-                  ${addedStockValue.toLocaleString()}
+                  ${realTimeValue.toLocaleString()}
                 </h2>
                 <div className={`flex items-center ${valueChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                   {valueChange >= 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
@@ -85,14 +111,16 @@ const Dashboard = ({ totalValue }) => {
           <div className="mt-6 h-[200px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={historicalData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200" />
+                <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
                 <XAxis 
                   dataKey="time" 
                   className="text-xs"
+                  stroke="#9CA3AF"
                 />
                 <YAxis 
                   className="text-xs"
                   domain={['auto', 'auto']}
+                  stroke="#9CA3AF"
                 />
                 <Tooltip 
                   contentStyle={{ 
@@ -101,6 +129,7 @@ const Dashboard = ({ totalValue }) => {
                     borderRadius: '0.5rem',
                     color: 'white'
                   }}
+                  formatter={(value) => [`$${value.toLocaleString()}`, 'Value']}
                 />
                 <Line 
                   type="monotone" 
