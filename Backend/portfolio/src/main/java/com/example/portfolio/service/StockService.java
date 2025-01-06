@@ -4,12 +4,14 @@ import com.example.portfolio.model.Stock;
 import com.example.portfolio.repository.StockRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
 import java.util.List;
-import java.util.Random;
-import java.util.stream.Collectors;
+import java.util.NoSuchElementException;
+import java.util.Optional;
 
 @Service
 public class StockService {
+
     @Autowired
     private StockRepository stockRepository;
 
@@ -17,16 +19,19 @@ public class StockService {
     private StockPriceService stockPriceService;
 
     public Stock addStock(Stock stock, Long userId) {
-        stock.setUserId(userId);
+        stock.setUserId(userId); // Very Important: Set the userId on the stock
         return stockRepository.save(stock);
     }
 
     public Stock updateStock(Long id, Stock stockDetails, Long userId) {
-        Stock stock = stockRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Stock not found"));
+        Optional<Stock> optionalStock = stockRepository.findById(id);
+        if (optionalStock.isEmpty()) {
+            throw new NoSuchElementException("Stock not found");
+        }
+        Stock stock = optionalStock.get();
 
         if (!stock.getUserId().equals(userId)) {
-            throw new RuntimeException("Unauthorized access to stock");
+            throw new NoSuchElementException("Unauthorized access to stock"); // More specific exception
         }
 
         stock.setName(stockDetails.getName());
@@ -37,14 +42,15 @@ public class StockService {
     }
 
     public void deleteStock(Long id, Long userId) {
-        Stock stock = stockRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Stock not found"));
-
-        if (!stock.getUserId().equals(userId)) {
-            throw new RuntimeException("Unauthorized access to stock");
+        Optional<Stock> optionalStock = stockRepository.findById(id);
+        if (optionalStock.isEmpty()) {
+            throw new NoSuchElementException("Stock not found");
         }
-
-        stockRepository.deleteById(id);
+        Stock stock = optionalStock.get();
+        if (!stock.getUserId().equals(userId)) {
+            throw new NoSuchElementException("Unauthorized access to stock");
+        }
+        stockRepository.delete(stock); // Better to delete the entity
     }
 
     public List<Stock> getAllStocks(Long userId) {
@@ -53,15 +59,11 @@ public class StockService {
 
     public double calculatePortfolioValue(Long userId) {
         List<Stock> stocks = stockRepository.findByUserId(userId);
-        return stocks.stream()
-                .mapToDouble(stock -> stock.getBuyPrice() * stock.getQuantity())
-                .sum();
+        return stocks.stream().mapToDouble(stock -> stock.getBuyPrice() * stock.getQuantity()).sum();
     }
 
     public double calculatePortfolioValueRealTime(Long userId) {
         List<Stock> stocks = stockRepository.findByUserId(userId);
-        return stocks.stream()
-                .mapToDouble(stock -> stockPriceService.getStockPrice(stock.getTicker()) * stock.getQuantity())
-                .sum();
+        return stocks.stream().mapToDouble(stock -> stockPriceService.getStockPrice(stock.getTicker()) * stock.getQuantity()).sum();
     }
 }
