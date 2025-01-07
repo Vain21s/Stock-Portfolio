@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Container, CssBaseline } from '@mui/material';
 import { fetchStocks, fetchPortfolioValue } from './api/StockServices';
+import LandingPage from './components/LandingPage';
 import AuthPage from './components/AuthPage';
 import Dashboard from './components/Dashboard';
 import StockForm from './components/StockForm';
 import StockList from './components/StockList';
-import ThreeDScene from './components/ThreeDScene';
 
 const App = () => {
   const [user, setUser] = useState(null);
+  const [showAuth, setShowAuth] = useState(false);
   const [stocks, setStocks] = useState([]);
   const [totalValue, setTotalValue] = useState(0);
 
@@ -43,6 +44,7 @@ const App = () => {
 
   const handleLoginSuccess = (userData) => {
     setUser(userData);
+    setShowAuth(false);
   };
 
   const handleLogout = () => {
@@ -51,29 +53,43 @@ const App = () => {
     setUser(null);
     setStocks([]);
     setTotalValue(0);
+    setShowAuth(false);
   };
 
   if (!user) {
-    return <AuthPage onLoginSuccess={handleLoginSuccess} />;
+    if (showAuth) {
+      return <AuthPage onLoginSuccess={handleLoginSuccess} />;
+    }
+    return <LandingPage onGetStarted={() => setShowAuth(true)} />;
   }
 
   return (
-    <Container maxWidth="lg">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <CssBaseline />
-      <div className="py-4 flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Welcome, {user.username}!</h1>
-        <button
-          onClick={handleLogout}
-          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-        >
-          Logout
-        </button>
-      </div>
-      <Dashboard totalValue={totalValue} userId={user.id} />
-      <StockForm fetchStocks={fetchAllData} userId={user.id} />
-      <StockList stocks={stocks} fetchStocks={fetchAllData} userId={user.id} />
-      <ThreeDScene />
-    </Container>
+      <Container maxWidth="lg">
+        <div className="py-8">
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Welcome, {user.username}!
+            </h1>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Logout
+            </button>
+          </div>
+          
+          <Dashboard totalValue={totalValue} userId={user.id} />
+          <div className="mt-8">
+            <StockForm fetchStocks={fetchAllData} userId={user.id} />
+          </div>
+          <div className="mt-8">
+            <StockList stocks={stocks} fetchStocks={fetchAllData} userId={user.id} />
+          </div>
+        </div>
+      </Container>
+    </div>
   );
 };
 
