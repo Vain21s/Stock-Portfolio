@@ -1,114 +1,152 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Box, Text, PerspectiveCamera, Sphere, Cylinder } from '@react-three/drei';
+import { OrbitControls, Text, PerspectiveCamera, Sphere, Torus } from '@react-three/drei';
 
-// Candlestick component
-const Candlestick = ({ position, isPositive, height = 1 }) => {
-  const color = isPositive ? "#22c55e" : "#ef4444";
+// Animated Orbital Ring
+const OrbitalRing = ({ radius, speed, height, color }) => {
+  const ringRef = useRef();
+  
+  useFrame((state) => {
+    ringRef.current.rotation.y = state.clock.elapsedTime * speed;
+    ringRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.5) * 0.2;
+  });
+
   return (
-    <group position={position}>
-      <Cylinder args={[0.1, 0.1, height, 8]} position={[0, height/2, 0]}>
-        <meshStandardMaterial color={color} />
-      </Cylinder>
-      <Box args={[0.3, 0.4, 0.3]} position={[0, height, 0]}>
-        <meshStandardMaterial color={color} />
-      </Box>
+    <group ref={ringRef}>
+      <Torus args={[radius, 0.02, 16, 100]} position={[0, height, 0]}>
+        <meshPhongMaterial color={color} />
+      </Torus>
     </group>
   );
 };
 
-// Animated floating coin
-const FloatingCoin = ({ position }) => {
-  const meshRef = useRef();
+// Animated Sphere with Value Display
+const ValueSphere = ({ position, value, color }) => {
+  const sphereRef = useRef();
+  const [scale, setScale] = useState(1);
   
   useFrame((state) => {
-    meshRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 2) * 0.2;
-    meshRef.current.rotation.y += 0.02;
+    sphereRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 2) * 0.2;
+    sphereRef.current.rotation.y += 0.01;
+    
+    // Pulse effect
+    const newScale = 1 + Math.sin(state.clock.elapsedTime * 3) * 0.1;
+    setScale(newScale);
   });
 
   return (
-    <group ref={meshRef} position={position}>
-      <Cylinder args={[0.4, 0.4, 0.1, 32]} rotation={[Math.PI / 2, 0, 0]}>
-        <meshStandardMaterial color="#fbbf24" metalness={0.8} roughness={0.2} />
-      </Cylinder>
+    <group ref={sphereRef} position={position}>
+      <Sphere args={[0.3, 32, 32]} scale={[scale, scale, scale]}>
+        <meshPhongMaterial color={color} metalness={0.8} roughness={0.2} />
+      </Sphere>
       <Text
-        position={[0, 0, 0.06]}
+        position={[0, 0.5, 0]}
         fontSize={0.2}
-        color="#000000"
+        color="white"
         anchorX="center"
         anchorY="middle"
       >
-        $
+        ${value}
       </Text>
     </group>
   );
 };
 
-// Stock trend graph
-const TrendLine = ({ points, color }) => {
-  const lineRef = useRef();
+// Data Point Particle System
+const DataPoints = ({ count = 50 }) => {
+  const pointsRef = useRef();
+  const [particles, setParticles] = useState([]);
   
+  useEffect(() => {
+    // Generate random particles with their own properties
+    const newParticles = Array.from({ length: count }, () => ({
+      position: [
+        (Math.random() - 0.5) * 10,
+        (Math.random() - 0.5) * 10,
+        (Math.random() - 0.5) * 10
+      ],
+      speed: Math.random() * 0.02 + 0.01
+    }));
+    setParticles(newParticles);
+  }, [count]);
+
   useFrame((state) => {
-    lineRef.current.rotation.y += 0.01;
+    pointsRef.current.children.forEach((point, i) => {
+      const particle = particles[i];
+      point.position.y += Math.sin(state.clock.elapsedTime * particle.speed) * 0.02;
+      point.rotation.z += 0.01;
+    });
   });
 
   return (
-    <group ref={lineRef}>
-      {points.map((point, i) => {
-        if (i < points.length - 1) {
-          return (
-            <Cylinder
-              key={i}
-              position={[(points[i][0] + points[i+1][0])/2, (points[i][1] + points[i+1][1])/2, 0]}
-              rotation={[0, 0, Math.atan2(points[i+1][1] - points[i][1], points[i+1][0] - points[i][0])]}
-              scale={[Math.hypot(points[i+1][0] - points[i][0], points[i+1][1] - points[i][1]), 0.05, 0.05]}
-            >
-              <meshStandardMaterial color={color} />
-            </Cylinder>
-          );
-        }
-        return null;
-      })}
+    <group ref={pointsRef}>
+      {particles.map((particle, i) => (
+        <Sphere 
+          key={i} 
+          args={[0.05, 8, 8]} 
+          position={particle.position}
+        >
+          <meshPhongMaterial 
+            color="#4ade80" 
+            emissive="#4ade80" 
+            emissiveIntensity={0.5} 
+          />
+        </Sphere>
+      ))}
     </group>
   );
 };
 
 const ThreeDScene = () => {
-  const [trendPoints, setTrendPoints] = useState([]);
-  
-  useState(() => {
-    // Generate random trend line points
-    const points = Array.from({ length: 10 }, (_, i) => [
-      i * 0.5 - 2,
-      Math.sin(i * 0.5) * 0.5 + Math.random() * 0.3
-    ]);
-    setTrendPoints(points);
+  // Internal state for simulated stock values
+  const [mockStockValues, setMockStockValues] = useState({
+    stock1: 1234.56,
+    stock2: 1358.02
+  });
+
+  // Generate mock data updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setMockStockValues(prev => ({
+        stock1: prev.stock1 + (Math.random() - 0.5) * 10,
+        stock2: prev.stock2 + (Math.random() - 0.5) * 10
+      }));
+    }, 1000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   return (
-    <div className="w-full h-[500px] rounded-lg overflow-hidden shadow-lg bg-gray-900">
+    <div style={{ width: '100%', height: '500px' }}>
       <Canvas>
         <PerspectiveCamera makeDefault position={[0, 2, 10]} />
         
-        {/* Enhanced lighting */}
+        {/* Basic lighting setup */}
         <ambientLight intensity={0.3} />
         <directionalLight position={[5, 5, 5]} intensity={1} />
-        <pointLight position={[10, 10, 10]} intensity={1.5} color="#ffffff" />
-        <spotLight position={[-10, 10, -10]} angle={0.3} intensity={1} color="#4ade80" />
-
+        <pointLight position={[10, 10, 10]} intensity={1.5} />
+        
         {/* Decorative elements */}
-        <FloatingCoin position={[-2, 0, 0]} />
-        <FloatingCoin position={[2, 0, 0]} />
+        <OrbitalRing radius={3} speed={0.3} height={0} color="#4ade80" />
+        <OrbitalRing radius={4} speed={-0.2} height={1} color="#60a5fa" />
+        <OrbitalRing radius={5} speed={0.1} height={-1} color="#f472b6" />
 
-        {/* Stock trend visualization */}
-        <TrendLine points={trendPoints} color="#22c55e" />
+        {/* Value displays */}
+        <ValueSphere 
+          position={[-2, 0, 0]} 
+          value={mockStockValues.stock1.toFixed(2)} 
+          color="#4ade80" 
+        />
+        <ValueSphere 
+          position={[2, 0, 0]} 
+          value={mockStockValues.stock2.toFixed(2)} 
+          color="#60a5fa" 
+        />
 
-        {/* Candlesticks */}
-        <Candlestick position={[-1.5, -1, 0]} isPositive={true} height={1.2} />
-        <Candlestick position={[-0.5, -1, 0]} isPositive={false} height={0.8} />
-        <Candlestick position={[0.5, -1, 0]} isPositive={true} height={1.5} />
-        <Candlestick position={[1.5, -1, 0]} isPositive={true} height={1.1} />
+        {/* Background particles */}
+        <DataPoints count={50} />
 
+        {/* Controls */}
         <OrbitControls
           enableZoom={true}
           enablePan={true}

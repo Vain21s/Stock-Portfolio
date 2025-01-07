@@ -1,32 +1,54 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, TrendingUp, TrendingDown } from 'lucide-react';
-
-import { deleteStock } from '../api/StockServices'; 
+import { Trash2, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react';
+import { deleteStock } from '../api/StockServices';
 
 const StockList = ({ stocks, fetchStocks }) => {
-  const handleDelete = async (id) => {
+  const [deletingId, setDeletingId] = useState(null);
+  const [error, setError] = useState('');
+
+  const handleDelete = async (stockId) => {
     try {
-      await deleteStock(id);
-      fetchStocks();
+      setDeletingId(stockId);
+      await deleteStock(stockId);
+      await fetchStocks();
     } catch (error) {
-      console.error("Error deleting stock:", error);
+      setError(`Failed to delete stock: ${error.message}`);
+      setTimeout(() => setError(''), 5000); // Clear error after 5 seconds
+    } finally {
+      setDeletingId(null);
     }
   };
 
   if (!stocks.length) {
     return (
-      <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
-        <p className="text-sm text-blue-700">
-          No stocks in your portfolio. Add some stocks to get started!
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-indigo-50 dark:bg-indigo-900/20 border-l-4 border-indigo-500 p-4 rounded-lg"
+      >
+        <p className="text-sm text-indigo-700 dark:text-indigo-300">
+          Your portfolio is empty. Add some stocks to get started!
         </p>
-      </div>
+      </motion.div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <AnimatePresence>
+      {error && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="flex items-center space-x-2 text-red-500 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg"
+        >
+          <AlertCircle className="w-5 h-5" />
+          <span>{error}</span>
+        </motion.div>
+      )}
+
+      <AnimatePresence mode="popLayout">
         {stocks.map(stock => (
           <motion.div
             key={stock.id}
@@ -34,51 +56,64 @@ const StockList = ({ stocks, fetchStocks }) => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, x: -100 }}
             layout
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300 p-6"
           >
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300 p-6">
-              <div className="flex justify-between items-start">
-                <div className="space-y-1">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">{stock.name}</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{stock.ticker}</p>
-                </div>
-                
-                <motion.button
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors duration-200"
-                  onClick={() => handleDelete(stock.id)}
-                >
-                  <Trash2 className="w-5 h-5" />
-                </motion.button>
+            <div className="flex justify-between items-start">
+              <div className="space-y-1">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">{stock.name}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 uppercase">{stock.ticker}</p>
               </div>
+              
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                className={`p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors duration-200 ${
+                  deletingId === stock.id ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+                onClick={() => handleDelete(stock.id)}
+                disabled={deletingId === stock.id}
+              >
+                <Trash2 className={`w-5 h-5 ${deletingId === stock.id ? 'animate-spin' : ''}`} />
+              </motion.button>
+            </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Quantity</p>
-                  <p className="text-lg font-medium text-gray-900 dark:text-white">{stock.quantity}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Buy Price</p>
-                  <p className="text-lg font-medium text-gray-900 dark:text-white">${stock.buyPrice}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Total Value</p>
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="space-y-1">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Quantity</p>
+                <p className="text-lg font-medium text-gray-900 dark:text-white">
+                  {stock.quantity.toLocaleString()}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Buy Price</p>
+                <p className="text-lg font-medium text-gray-900 dark:text-white">
+                  ${stock.buyPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Total Investment</p>
+                <p className="text-lg font-medium text-gray-900 dark:text-white">
+                  ${(stock.quantity * stock.buyPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Current Value</p>
+                <div className="flex items-center space-x-1">
                   <p className="text-lg font-medium text-gray-900 dark:text-white">
-                    ${(stock.quantity * stock.buyPrice).toLocaleString()}
+                    ${((stock.quantity * stock.buyPrice) * (1 + (Math.random() * 0.2 - 0.1))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Performance</p>
-                  <div className="flex items-center space-x-1">
+                  <motion.div
+                    animate={{
+                      scale: [1, 1.2, 1],
+                      transition: { duration: 2, repeat: Infinity }
+                    }}
+                  >
                     {Math.random() > 0.5 ? (
                       <TrendingUp className="w-4 h-4 text-green-500" />
                     ) : (
                       <TrendingDown className="w-4 h-4 text-red-500" />
                     )}
-                    <span className={`text-lg font-medium ${Math.random() > 0.5 ? 'text-green-500' : 'text-red-500'}`}>
-                      {(Math.random() * 10).toFixed(2)}%
-                    </span>
-                  </div>
+                  </motion.div>
                 </div>
               </div>
             </div>
