@@ -33,6 +33,13 @@ jobs:
     - name: Build with Maven
       working-directory: Backend/portfolio
       run: mvn -B package -f pom.xml  -DskipTests
+      
+    - name: Generate Dependency Graph
+      working-directory: Backend/portfolio  # Ensures the command runs inside the correct folder
+      run: mvn com.github.ferstl:depgraph-maven-plugin:4.0.1:graph
+
+
+    
 
     # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
     - name: Update dependency graph
