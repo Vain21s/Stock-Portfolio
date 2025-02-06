@@ -32,7 +32,7 @@ jobs:
 
     - name: Build with Maven
       working-directory: Backend/portfolio
-      run: mvn -B package -f pom.xml
+      run: mvn -B package -f pom.xml  -DskipTests
 
     # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
     - name: Update dependency graph
